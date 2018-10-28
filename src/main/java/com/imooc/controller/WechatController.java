@@ -1,6 +1,7 @@
 package com.imooc.controller;
 
 import com.imooc.config.ProjectUrlConfig;
+import com.imooc.constant.RedisConstant;
 import com.imooc.enums.ResultEnum;
 import com.imooc.exception.SellException;
 import com.imooc.utils.JsonUtil;
@@ -9,13 +10,16 @@ import me.chanjar.weixin.common.api.WxConsts;
 import me.chanjar.weixin.common.exception.WxErrorException;
 import me.chanjar.weixin.mp.api.WxMpService;
 import me.chanjar.weixin.mp.bean.result.WxMpOAuth2AccessToken;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import java.net.URLEncoder;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Created by SqMax on 2018/3/23.
@@ -34,6 +38,20 @@ public class WechatController {
     @Autowired
     private ProjectUrlConfig projectUrlConfig;
 
+    @Autowired
+    private StringRedisTemplate redisTemplate;
+
+
+    @GetMapping("/enterApp")
+    public String enterApp(){
+        String returnUrl = "http://192.168.1.45";
+        String url=projectUrlConfig.getWechatMpAuthorize()+"/sell/wechat/userInfo";
+        String redirectUrl=wxMpService.oauth2buildAuthorizationUrl(url,WxConsts.OAUTH2_SCOPE_BASE, URLEncoder.encode(returnUrl));
+        log.info("【微信网页授权】获取code,redirectUrl={}",redirectUrl);
+
+        return "redirect:"+redirectUrl;//重定向到下面一个方法
+    }
+
     @GetMapping("/authorize")
     public String authorize(@RequestParam("returnUrl") String returnUrl){
 //        WxMpService wxMpService=new WxMpServiceImpl();
@@ -42,11 +60,18 @@ public class WechatController {
         String url=projectUrlConfig.getWechatMpAuthorize()+"/sell/wechat/userInfo";
         String redirectUrl=wxMpService.oauth2buildAuthorizationUrl(url,WxConsts.OAUTH2_SCOPE_BASE, URLEncoder.encode(returnUrl));
         log.info("【微信网页授权】获取code,redirectUrl={}",redirectUrl);
+
         return "redirect:"+redirectUrl;//重定向到下面一个方法
     }
+
+
     @GetMapping("/userInfo")
     public String userInfo(@RequestParam("code") String code,
                          @RequestParam("state") String returnUrl){
+        String openId = redisTemplate.opsForValue().get(code);
+        if (StringUtils.isNotBlank(openId)){
+            return "redirect:"+ returnUrl+"?openid="+openId;
+        }
         WxMpOAuth2AccessToken wxMpOAuth2AccessToken=new WxMpOAuth2AccessToken();
         try {
             wxMpOAuth2AccessToken=wxMpService.oauth2getAccessToken(code);
@@ -54,7 +79,9 @@ public class WechatController {
             log.error("【微信网页授权】,{}",e);
             throw new SellException(ResultEnum.WECHAT_MP_ERROR.getCode(),e.getError().getErrorMsg());
         }
-        String openId=wxMpOAuth2AccessToken.getOpenId();
+        Integer expire= RedisConstant.EXPIRE;
+        openId=wxMpOAuth2AccessToken.getOpenId();
+        redisTemplate.opsForValue().set(code, openId, expire, TimeUnit.SECONDS);
         log.info("【微信网页授权】获取openid,returnUrl={}",returnUrl);
         return "redirect:"+ returnUrl+"?openid="+openId;
 
@@ -69,6 +96,8 @@ public class WechatController {
         String redirectUrl=wxOpenService.buildQrConnectUrl(url,WxConsts.QRCONNECT_SCOPE_SNSAPI_LOGIN,URLEncoder.encode(returnUrl));
         return "redirect:"+redirectUrl;
     }
+
+
     @GetMapping("/qrUserInfo")
     public String qrUserInfo(@RequestParam("code") String code,
                              @RequestParam("state") String returnUrl){

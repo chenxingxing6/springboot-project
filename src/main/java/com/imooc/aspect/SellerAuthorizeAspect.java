@@ -9,7 +9,6 @@ import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Before;
 import org.aspectj.lang.annotation.Pointcut;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -26,8 +25,8 @@ import javax.servlet.http.HttpServletRequest;
 @Slf4j
 public class SellerAuthorizeAspect {
 
-    @Autowired
-    private StringRedisTemplate redisTemplate;
+//    @Autowired
+//    private StringRedisTemplate redisTemplate;
 
 //    @Pointcut("execution(public * com.imooc.controller.Seller*.*(..))"+
 //    "&& !execution(public * com.imooc.controller.SellerUserController.*(..))")
